@@ -1,0 +1,36 @@
+{
+    "name": "beta/bx.otel.base",
+    "type": "lib",
+    "autoload": {
+        "psr-4": {
+            "Otel\\Base\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Otel\\Base\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "kirill",
+            "email": "KarpinKS@loodsen.ru"
+        }
+    ],
+    "require": {
+        "open-telemetry/opentelemetry": "*",
+        "guzzlehttp/promises": "*",
+        "php-http/httplug": "*",
+        "psr/http-server-middleware": "^1.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "tbachert/spi": true
+        }
+    },
+    "version": "0.0.1",
+    "require-dev": {
+        "phpunit/phpunit": "^12.0"
+    }
+}
