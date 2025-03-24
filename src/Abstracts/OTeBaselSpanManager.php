@@ -3,12 +3,16 @@
 namespace Otel\Base\Abstracts;
 
 
+use EmptyIterator;
+use Exception;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\SDK\Trace\TracerProviderInterface;
+use Otel\Base\Interfaces\EventInterface;
 use Otel\Base\Interfaces\OTelSpanManagerInterface;
 use Otel\Base\Util\SpanStack;
+use SebastianBergmann\FileIterator\Iterator;
 
 
 abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
@@ -37,13 +41,46 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
 
     public function __destruct()
     {
-        foreach ($this->spanStack as $span) {
+        foreach ($this->spanStack->stack as $span) {
+            /**
+             * @var SpanInterface $span
+             */
+            foreach ($this->getEventIteratorForSpan($span) as $event) {
+                $span->addEvent($event->getName(), $event->getAttributes());
+            }
+
             $span->end();
         }
 
         $this->tracerProvider->shutdown();
     }
 
+    /**
+     * @param SpanInterface $span
+     * @return iterable|EventInterface[]
+     */
+    private function getEventIteratorForSpan(SpanInterface $span): iterable
+    {
+        if (empty($this->eventListener)) {
+            return [];
+        }
+
+        if ($this->eventListener instanceof Iterator) {
+            $this->eventListener = iterator_to_array($this->eventListener);
+        }
+
+        foreach ($this->eventListener as $event) {
+            if ($event instanceof EventInterface && $event->getSpanName() === $span->getName()) {
+                yield $event;
+            }
+        }
+
+        return new EmptyIterator();
+    }
+
+    /**
+     * @throws Exception
+     */
     public function createAndStartSpan($name, $attributes = []): void
     {
         if ($this->spanStack->isExist($name) && ($name == $this->getRootSpanName())) {
@@ -51,7 +88,7 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
         }
 
         if ($this->spanStack->isExist($name)) {
-            throw new \Exception('Span already exists');
+            throw new Exception('Span already exists');
         }
 
         $span = $this->getTracer()

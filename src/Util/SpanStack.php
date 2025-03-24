@@ -9,7 +9,7 @@ use SplStack;
 class SpanStack
 {
     private array $list = [];
-    private SplStack $stack;
+    public SplStack $stack;
 
     public function __construct()
     {
