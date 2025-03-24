@@ -9,18 +9,18 @@ use SplStack;
 class SpanStack
 {
     private array $list = [];
-    private SplStack $queue;
+    private SplStack $stack;
 
     public function __construct()
     {
-        $this->queue = new SplStack();
+        $this->stack = new SplStack();
     }
 
     public function add(SpanInterface|ReadableSpanInterface $span): bool
     {
         if (!$this->isExist($span->getName())) {
             $this->list[] = $span->getName();
-            $this->queue->push($span);
+            $this->stack->push($span);
             return true;
         }
 
@@ -31,7 +31,7 @@ class SpanStack
     {
         if ($this->isExist($spanName) && $this->isCurrent($spanName)) {
             unset($this->list[$spanName]);
-            $this->queue->pop();
+            $this->stack->pop();
             return true;
         }
         return false;
@@ -44,13 +44,13 @@ class SpanStack
 
     public function isCurrent($spanName): bool
     {
-        $span = $this->queue->top();
+        $span = $this->stack->top();
         return ($span && $span->getName() === $spanName);
     }
 
     public function getByName($spanName): SpanInterface|ReadableSpanInterface|null
     {
-        foreach ($this->queue as $item) {
+        foreach ($this->stack as $item) {
             if ($item->getName() == $spanName) {
                 return $item;
             }
@@ -62,5 +62,20 @@ class SpanStack
     public function getNames(): array
     {
         return $this->list;
+    }
+
+    public function removeCurrent(): SpanInterface|ReadableSpanInterface|null
+    {
+        $span = $this->stack->pop();
+        unset($this->list[$span->getName()]);
+        return $span;
+    }
+
+    public function getCurrent(): SpanInterface|ReadableSpanInterface|null
+    {
+        if ($this->stack->isEmpty()) {
+            return null;
+        }
+        return $this->stack->top();
     }
 }

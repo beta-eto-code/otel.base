@@ -14,26 +14,24 @@ class BaseOtelSpanManagerTest extends TestCase
     public function testSpan()
     {
         $otelManager = (new OTelFactoryStub())->createDefault();
-        $otelManager->startSpan('test');
+        $otelManager->createAndStartSpan('test');
 
-        $this->assertNotNull($otelManager->getSpan('test'));
+        $this->assertNotNull($otelManager->getSpan());
 
-        $otelManager->endSpan('test');
+        $otelManager->endSpan();
 
-        $this->assertNull($otelManager->getSpan('test'));
+        $this->assertNull($otelManager->getSpan());
     }
 
     public function testRootSpanOpenClose()
     {
-        $this->expectException(\Exception::class);
         $otelManager = (new OTelFactoryStub())->createDefault();
         $otelManager->startRootSpan([
             'http.method' => 'POST',
             'http.url' => '/test'
         ]);
-        $this->assertNotNull($otelManager->getSpan($otelManager->getRootSpanName()));
-
-        $otelManager->endSpan($otelManager->getRootSpanName());
+        $this->assertNotNull($otelManager->getSpan());
+        $otelManager->endSpan();
     }
 
     public function testStartSpan()
@@ -58,27 +56,9 @@ class BaseOtelSpanManagerTest extends TestCase
         ]);
 
         /** @var ReadableSpanInterface $span */
-        $span = $spanManager->getSpan($spanManager->getRootSpanName());
+        $span = $spanManager->getSpan();
         $t =  $span->toSpanData()->getEvents();
 
         $this->assertTrue(count($t) === 1);
     }
-
-    public function testCloseOpenedSpanWithSubs()
-    {
-        $this->expectException(\Exception::class);
-        $otelManager = (new OTelFactoryStub())->createDefault();
-        $otelManager->startRootSpan([
-            'http.method' => 'POST',
-            'http.url' => '/test'
-        ]);
-
-        $otelManager->startSpan('test1', []);
-        $otelManager->startSpan('test2', []);
-        $otelManager->startSpan('test3', []);
-        $otelManager->startSpan('test4', []);
-
-        $otelManager->endSpan('test2');
-    }
-
 }
