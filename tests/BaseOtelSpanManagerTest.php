@@ -63,4 +63,22 @@ class BaseOtelSpanManagerTest extends TestCase
 
         $this->assertTrue(count($t) === 1);
     }
+
+    public function testCloseOpenedSpanWithSubs()
+    {
+        $this->expectException(\Exception::class);
+        $otelManager = (new OTelFactoryStub())->createDefault();
+        $otelManager->startRootSpan([
+            'http.method' => 'POST',
+            'http.url' => '/test'
+        ]);
+
+        $otelManager->startSpan('test1', []);
+        $otelManager->startSpan('test2', []);
+        $otelManager->startSpan('test3', []);
+        $otelManager->startSpan('test4', []);
+
+        $otelManager->endSpan('test2');
+    }
+
 }

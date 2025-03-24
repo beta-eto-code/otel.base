@@ -6,9 +6,9 @@ namespace Otel\Base\Abstracts;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\TracerInterface;
-use OpenTelemetry\SDK\Trace\ReadableSpanInterface;
 use OpenTelemetry\SDK\Trace\TracerProviderInterface;
 use Otel\Base\Interfaces\OTelSpanManagerInterface;
+use Otel\Base\Util\SpanStack;
 
 
 abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
@@ -17,35 +17,43 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
     private ?TracerInterface $tracer;
 
     /**
-     * @var array<SpanInterface>
+     * @var SpanStack<SpanInterface>
      */
-    private array $spanList = [];
+    private SpanStack $spanStack;
+    private ?iterable $eventListener;
 
-    public function __construct(TracerProviderInterface $tracerProvider)
+    /**
+     * @param TracerProviderInterface $tracerProvider
+     * @param iterable|null $eventIterator
+     */
+    public function __construct(TracerProviderInterface $tracerProvider, ?iterable $eventIterator = null)
     {
         $this->tracerProvider = $tracerProvider;
         $this->setTracer(null);
+        $this->eventListener = $eventIterator;
+        $this->spanStack = new SpanStack();
     }
 
 
     public function __destruct()
     {
-        foreach ($this->spanList as $span) {
+        foreach ($this->spanStack as $span) {
             $span->end();
         }
 
         $this->tracerProvider->shutdown();
     }
 
-    private function addSpan(string $name, SpanInterface $span): void
-    {
-        $this->spanList[$name] = $span;
-    }
-
     public function startSpan($name, $attributes = []): void
     {
-        if (array_key_exists($name, $this->spanList)) {
-            throw new \RuntimeException('Span ' . $name . ' already started');
+        if ($this->spanStack->isExist($name)) {
+            $span = $this->spanStack->getByName($name);
+
+            foreach ($attributes as $key => $value) {
+                $span->setAttribute($key, $value);
+            }
+
+            return;
         }
 
         $span = $this->getTracer()
@@ -57,7 +65,7 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
             $span->setAttribute($key, $value);
         }
 
-        $this->addSpan($name, $span);
+        $this->spanStack->add($span);
 
         $span->activate();
 
@@ -65,14 +73,14 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
 
     public function addSpanEvent(string $spanName, string $eventName, ?array $attributes): void
     {
-        if (array_key_exists($spanName, $this->spanList)) {
+        if ($this->spanStack->isExist($spanName)) {
             $this->getSpan($spanName)->addEvent($eventName, $attributes);
         }
     }
 
     public function addSpanAttributes(string $spanName, ?array $attributes): void
     {
-        if (array_key_exists($spanName, $this->spanList)) {
+        if ($this->spanStack->isExist($spanName)) {
             $span = $this->getSpan($spanName);
             foreach ($attributes as $key => $value) {
                 $span->setAttribute($key, $value);
@@ -82,22 +90,26 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
 
     public function endSpan(string $spanName): void
     {
-        if (!array_key_exists($spanName, $this->spanList)) {
-            throw new \RuntimeException('Span ' . $spanName . ' not found');
-        }
-
         if ($spanName == $this->getRootSpanName()) {
             throw new \RuntimeException('Root span cannot be ended');
         }
 
-        $this->getSpan($spanName)->end();
+        if (!$this->spanStack->isExist($spanName)) {
+            throw new \RuntimeException('Span ' . $spanName . ' not found');
+        }
 
-        unset($this->spanList[$spanName]);
+        if ($this->spanStack->isCurrent($spanName)) {
+            $this->getSpan($spanName)->end();
+
+            $this->spanStack->remove($spanName);
+        } else {
+            throw new \RuntimeException('Span ' . $spanName . ' has opened sub spans');
+        }
     }
 
     public function getTracer(): TracerInterface
     {
-        if (is_null($this->tracer )) {
+        if (is_null($this->tracer)) {
             $this->setTracer(null);
         }
         return $this->tracer;
@@ -106,7 +118,7 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
     public function setTracer(?string $tracerName): void
     {
         if ($tracerName == null) {
-            $tracerName = getenv('OTEL_TRACER_NAME') || self::OTEL_TRACER_NAME_DEFAULT;
+            $tracerName = getenv('LO_OTEL_TRACER_NAME') || self::OTEL_TRACER_NAME_DEFAULT;
         }
         $this->tracer = $this->tracerProvider->getTracer($tracerName);
     }
@@ -116,9 +128,9 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
         return self::ROOT_SPAN_NAME;
     }
 
-    public function startRootSpan(?array $attributes = [])
+    public function startRootSpan(?array $attributes = []): void
     {
-        if (array_key_exists($this->getRootSpanName(), $this->spanList)) {
+        if ($this->spanStack->isExist($this->getRootSpanName())) {
             $this->addSpanAttributes(self::ROOT_SPAN_NAME, $attributes);
         } else {
             $this->startSpan($this->getRootSpanName(), $attributes);
@@ -127,6 +139,16 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
 
     public function getSpan(string $spanName): ?SpanInterface
     {
-        return $this->spanList[$spanName];
+        return $this->spanStack->getByName($spanName);
+    }
+
+    public function getEventListener(): ?iterable
+    {
+        return $this->eventListener;
+    }
+
+    public function getSpansNames(): array
+    {
+        return $this->spanStack->getNames();
     }
 }

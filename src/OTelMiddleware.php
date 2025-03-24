@@ -13,9 +13,13 @@ class OTelMiddleware implements MiddlewareInterface
 {
     private OTelFactoryInterface $otelSpanFactory;
 
-    public function __construct(OTelFactoryInterface $otelSpanFactory)
+    public function __construct(?OTelFactoryInterface $otelSpanFactory)
     {
-        $this->otelSpanFactory = $otelSpanFactory;
+        if (is_null($otelSpanFactory)) {
+            $this->otelSpanFactory = new OTelFactory();
+        } else {
+            $this->otelSpanFactory = $otelSpanFactory;
+        }
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface

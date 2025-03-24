@@ -20,4 +20,6 @@ interface OTelSpanManagerInterface
     public function getRootSpanName(): string;
 
     public function getSpan(string $spanName): ?SpanInterface;
+
+    public function getEventListener(): ?iterable;
 }
