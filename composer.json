@@ -1,5 +1,5 @@
 {
-    "name": "beta/bx.otel.base",
+    "name": "beta/otel.base",
     "type": "lib",
     "autoload": {
         "psr-4": {
