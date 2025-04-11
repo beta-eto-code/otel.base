@@ -13,9 +13,24 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class OTelFactory implements OTelFactoryInterface
 {
-    public function createDefault(): OTelSpanManagerInterface
+    private string $fileName;
+    private ?iterable $eventIterator;
+
+    public function __construct(string $fileName = 'php://stdout', ?iterable $eventIterator = null)
     {
-        $stream = fopen('php://stdout', 'w');
+        $this->fileName = $fileName;
+        $this->eventIterator = $eventIterator;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function create(ServerRequestInterface $request): OTelSpanManagerInterface
+    {
+        $stream = fopen($this->fileName, 'w');
+        if ($stream === false) {
+            throw new Exception("Unable to open file '$this->fileName'.");
+        }
 
         $tracerProvider = new TracerProvider(
             new SimpleSpanProcessor(
@@ -25,24 +40,11 @@ class OTelFactory implements OTelFactoryInterface
             )
         );
 
-        return new OTelSpanManager($tracerProvider);
-    }
-
-    /**
-     * @throws Exception
-     */
-    public function create(ServerRequestInterface $request): void
-    {
-        if (!OTelRegistry::has('default')) {
-            OTelRegistry::register('default', $this->createDefault());
-        }
-
-        $spanManager = OTelRegistry::get('default');
-
+        $spanManager = new OTelSpanManager($tracerProvider, $this->eventIterator);
         $spanManager->startRootSpan([
             'http.method' => $request->getMethod(),
             'http.url' => $request->getUri()->getPath(),
         ]);
+        return $spanManager;
     }
-
 }

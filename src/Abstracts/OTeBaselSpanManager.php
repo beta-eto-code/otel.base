@@ -3,79 +3,42 @@
 namespace Otel\Base\Abstracts;
 
 
-use EmptyIterator;
 use Exception;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\SDK\Trace\TracerProviderInterface;
-use Otel\Base\Interfaces\EventInterface;
 use Otel\Base\Interfaces\OTelSpanManagerInterface;
 use Otel\Base\Util\SpanStack;
-use SebastianBergmann\FileIterator\Iterator;
 
 
 abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
 {
-    private TracerProviderInterface $tracerProvider;
-    private ?TracerInterface $tracer;
+    protected TracerProviderInterface $tracerProvider;
+    protected ?TracerInterface $tracer;
 
     /**
      * @var SpanStack<SpanInterface>
      */
-    private SpanStack $spanStack;
-    private ?iterable $eventListener;
+    protected SpanStack $spanStack;
+
+    abstract protected function onDestruct(): void;
 
     /**
      * @param TracerProviderInterface $tracerProvider
-     * @param iterable|null $eventIterator
      */
-    public function __construct(TracerProviderInterface $tracerProvider, ?iterable $eventIterator = null)
+    public function __construct(TracerProviderInterface $tracerProvider)
     {
         $this->tracerProvider = $tracerProvider;
         $this->setTracer(null);
-        $this->eventListener = $eventIterator;
         $this->spanStack = new SpanStack();
     }
 
 
     public function __destruct()
     {
-        foreach ($this->spanStack->stack as $span) {
-            /**
-             * @var SpanInterface $span
-             */
-            foreach ($this->getEventIteratorForSpan($span) as $event) {
-                $span->addEvent($event->getName(), $event->getAttributes());
-            }
-
-            $span->end();
-        }
-
+        $this->onDestruct();
         $this->tracerProvider->shutdown();
-    }
-
-    /**
-     * @param SpanInterface $span
-     * @return iterable|EventInterface[]
-     */
-    private function getEventIteratorForSpan(SpanInterface $span): iterable
-    {
-        if (empty($this->eventListener)) {
-            return [];
-        }
-
-        if ($this->eventListener instanceof Iterator) {
-            $this->eventListener = iterator_to_array($this->eventListener);
-        }
-
-        foreach ($this->eventListener as $event) {
-            if ($event instanceof EventInterface && $event->getSpanName() === $span->getName()) {
-                yield $event;
-            }
-        }
-
-        return new EmptyIterator();
     }
 
     /**
@@ -113,16 +76,6 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
         }
     }
 
-    private function addSpanAttributes(string $spanName, ?array $attributes): void
-    {
-        if ($this->spanStack->isExist($spanName)) {
-            $span = $this->getSpan();
-            foreach ($attributes as $key => $value) {
-                $span->setAttribute($key, $value);
-            }
-        }
-    }
-
     public function endSpan(): void
     {
         $span = $this->spanStack->removeCurrent();
@@ -152,6 +105,9 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
         return self::ROOT_SPAN_NAME;
     }
 
+    /**
+     * @throws Exception
+     */
     public function startRootSpan(?array $attributes = []): void
     {
         if (!$this->spanStack->isExist($this->getRootSpanName())) {
@@ -162,11 +118,6 @@ abstract class OTeBaselSpanManager implements OTelSpanManagerInterface
     public function getSpan(): ?SpanInterface
     {
         return $this->spanStack->getCurrent();
-    }
-
-    public function getEventListener(): ?iterable
-    {
-        return $this->eventListener;
     }
 
     public function getSpansNames(): array

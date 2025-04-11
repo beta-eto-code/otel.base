@@ -6,5 +6,5 @@ use Psr\Http\Message\ServerRequestInterface;
 
 interface OTelFactoryInterface
 {
-    public function create(ServerRequestInterface $request): void;
+    public function create(ServerRequestInterface $request): OTelSpanManagerInterface;
 }
