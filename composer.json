@@ -29,9 +29,7 @@
             "tbachert/spi": true
         }
     },
-    "version": "0.0.1",
     "require-dev": {
         "phpunit/phpunit": "^12.0"
-    },
-    "minimum-stability": "dev"
+    }
 }
